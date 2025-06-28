@@ -1,10 +1,10 @@
 # Signal Desktop config decryption tool
 
-Requires [PowerShell 6 or higher](https://github.com/PowerShell/PowerShell/releases/), the built-in version of PowerShell 5 in Windows 10 will not work.
+Requires [PowerShell 6 or higher](https://github.com/PowerShell/PowerShell/releases/), the built-in version of PowerShell 5 in Windows 10/11 will not work.
 
 ---
 
-Signal Desktop stores all messages in a database encrypted with an installation-specific encryption key, which is protected using DPAPI on Windows. As a result, if you just copy the `%APPDATA%\Signal` directory to a new computer, it will be unable to decrypt it.
+Signal Desktop stores all messages in a database encrypted with an installation-specific encryption key, which is protected using DPAPI on Windows. As a result, if you just copy the `%APPDATA%\Signal` directory to a new computer, Signal will be unable to decrypt it.
 
 This PowerShell script generates a new Signal config file containing the equivalent plaintext encryption key instead of the DPAPI-protected key and returns it. To move the Signal Desktop installation to a different machine:
 
