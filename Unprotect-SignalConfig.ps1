@@ -17,6 +17,13 @@ param(
 #  https://github.com/google/boringssl/blob/master/crypto/fipsmodule/cipher/aead.c.inc
 #  https://github.com/google/boringssl/blob/master/crypto/fipsmodule/cipher/e_aes.c.inc#L1006
 
+Set-StrictMode -Version 3
+$ErrorActionPreference = "Stop"
+
+if ($PSVersionTable.PSEdition -eq "Desktop") {
+    throw "This script requires PowerShell 6 or higher, your version is '$($PSVersionTable.PSVersion)'."
+}
+
 # the internal OSCrypt key is stored in "Local State" JSON file in `os_crypt.encrypted_base`, base64-encoded and prefixed with "DPAPI"
 $EncKey = cat -Raw "$SignalDataDir\Local State" | ConvertFrom-Json | % os_crypt | % encrypted_key | % {[convert]::FromBase64String($_)}
 if ("DPAPI" -ne [System.Text.Encoding]::ASCII.GetString($EncKey, 0, 5)) {
