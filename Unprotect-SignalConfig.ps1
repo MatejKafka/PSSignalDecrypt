@@ -1,5 +1,8 @@
 param(
-    [string]$SignalDataDir = $env:APPDATA + "\Signal"
+    ### Path to the directory where Signal stores user data.
+    [string]$SignalDataDir = $env:APPDATA + "\Signal",
+    ### If set, update the config.json file in place, instead of just returning the decrypted config object.
+    [switch]$Update
 )
 
 # Signal encrypts its database with an installation-specific encryption key; it uses the safeStorage
@@ -24,8 +27,12 @@ if ($PSVersionTable.PSEdition -eq "Desktop") {
     throw "This script requires PowerShell 6 or higher, your version is '$($PSVersionTable.PSVersion)'."
 }
 
+if (-not (Test-Path $SignalDataDir)) {
+    throw "Could not find the Signal data directory, expected path: $SignalDataDir"
+}
+
 # the internal OSCrypt key is stored in "Local State" JSON file in `os_crypt.encrypted_base`, base64-encoded and prefixed with "DPAPI"
-$EncKey = cat -Raw "$SignalDataDir\Local State" | ConvertFrom-Json | % os_crypt | % encrypted_key | % {[convert]::FromBase64String($_)}
+$EncKey = Get-Content -Raw "$SignalDataDir\Local State" | ConvertFrom-Json | % os_crypt | % encrypted_key | % {[convert]::FromBase64String($_)}
 if ("DPAPI" -ne [System.Text.Encoding]::ASCII.GetString($EncKey, 0, 5)) {
     throw "Unknown OSCrypt internal encryption key format (missing 'DPAPI' prefix)."
 }
@@ -35,7 +42,20 @@ $EncKey = $EncKey | select -Skip 5
 $Key = [System.Security.Cryptography.ProtectedData]::Unprotect($EncKey, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
 
 # the Signal database encryption key is stored in "config.json"
-$SignalConf = cat -Raw "$SignalDataDir\config.json" | ConvertFrom-Json -AsHashtable
+$SignalConf = Get-Content -Raw "$SignalDataDir\config.json" | ConvertFrom-Json -AsHashtable
+
+if (-not $SignalConf["encryptedKey"] -and $SignalConf["key"]) {
+    Write-Warning "Seems that the Signal encryption key is already decrypted, nothing to do."
+    if (-not $Update) {
+        echo $SignalConf
+    }
+    return
+}
+
+if (-not $SignalConf["encryptedKey"]) {
+    throw "Signal config does not contain the encrypted key, this should not happen."
+}
+
 $EncData = [convert]::FromHexString($SignalConf["encryptedKey"])
 function slice($Start, $End = $EncData.Length) {
     if ($Start -lt 0) {$Start = $EncData.Length + $Start}
@@ -68,4 +88,9 @@ $PatchedConf = $SignalConf.Clone()
 $PatchedConf.Remove("encryptedKey")
 $PatchedConf["key"] = $SignalDbKey
 
-return $PatchedConf
+if ($Update) {
+    $PatchedConf | ConvertTo-Json | Set-Content $SignalDataDir\config.json
+    Write-Host "Updated existing Signal config at '$SignalDataDir\config.json'..."
+} else {
+    return $PatchedConf
+}
